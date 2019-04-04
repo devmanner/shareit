@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+
+<!--
+
+Purpose: All-the-browser dept relaxer.
+Author: devmanner
+Github: https://github.com/devmanner/shareit
+Demo: http://shareit.mannerstedt.se
+Uses:
+	- Tabber:
+		"http://www.barelyfitz.com/projects/tabber
+
+-->
+
+<html lang="en">
+
+<script>
+
+var expenses = [];
+var persons = [];
+
+function add_expense() {
+    var who = document.getElementById("add_expense_form").elements['who'].value.trim();
+    var amount = document.getElementById("add_expense_form").elements['amount'].value.trim();
+    var what = document.getElementById("add_expense_form").elements['what'].value.trim();
+	var names = document.getElementById("add_expense_form").elements['names'].value.trim();
+
+    document.getElementById("add_expense_form").elements['who'].value = "";
+    document.getElementById("add_expense_form").elements['amount'].value = "";
+    document.getElementById("add_expense_form").elements['what'].value = "";
+	document.getElementById("add_expense_form").elements['names'].value = "";
+
+	if (names == "")
+		names = "all";
+	if (names != "all") {
+		names = names.split(/\s+/);
+		names.forEach(do_add_person);
+	}
+	do_add_person(who);
+
+	expenses.push({who: who, amount: parseInt(amount), what: what, names: names});
+	
+	update_view();
+}
+
+function add_person() {
+	do_add_person(document.getElementById("add_person_form").elements['who'].value);
+	update_view();
+}
+
+function do_add_person(x) {
+	if (-1 == persons.indexOf(x))
+		persons.push(x);
+}
+
+function calc_balance() {
+	var balance = [];
+	persons.forEach(function init_balance(p) { balance[p] = 0; })
+	for (var i = 0; i < expenses.length; i++) {
+		var pers = (expenses[i]["names"] == "all") ? persons : expenses[i]["names"];
+		pers.forEach(function add_balance(p) { balance[p] -= (expenses[i]["amount"] / pers.length); });
+		balance[expenses[i]["who"]] += expenses[i]["amount"];
+	}
+	return balance;
+}
+
+function close_to(x, y) {
+	return Math.abs(x-y)<0.5;
+}
+
+function do_payment(payment, balance, unbalanced) {
+	balance[payment[0]] += payment[2];
+	balance[payment[1]] -= payment[2];
+	for (var i = 0; i < unbalanced.length; i++) {
+		if (close_to(0, balance[unbalanced[i]]))
+			unbalanced.splice(i, 1);
+	}
+}
+
+function find_simple_payment(balance, unbalanced) {
+	// Find persons where balance*-1 == balance
+	for (var i = 0; i < unbalanced.length; ++i) {
+		for (var j = i+1; j < unbalanced.length; ++j) {
+			if (close_to(-1*balance[unbalanced[i]], balance[unbalanced[j]])) {
+				if (balance[unbalanced[i]]<0)
+					return [unbalanced[i],unbalanced[j],balance[unbalanced[j]]];
+				return [unbalanced[j],unbalanced[i],balance[unbalanced[i]]];
+			}
+		}
+	}
+	return [0,0,0];
+}
+
+function find_payment(balance, unbalanced) {
+	for (var i = 0; i < unbalanced.length; ++i) {
+		for (var j = 0; j < unbalanced.length; ++j) {
+			// Payment i -> j?
+			if (balance[unbalanced[i]] < 0 && balance[unbalanced[j]] > 0) {
+				return [unbalanced[i], unbalanced[j], Math.min(Math.abs(balance[unbalanced[i]]), balance[unbalanced[j]])];
+			}
+		}
+	}
+	return [0,0,0];
+}
+
+function payment_to_string(payment) {
+	return payment[0] + " pays " + Math.round(payment[2]) + ":- to " + payment[1];
+}
+
+function calc_payments(balance) {
+	var payments = [];
+	var unbalanced = []
+	for (var key in balance) {
+		if (!close_to(0, balance[key])) {
+			unbalanced.push(key);
+		}
+	}
+
+	for (var payment = find_simple_payment(balance, unbalanced); payment[0] != 0; payment = find_simple_payment(balance, unbalanced)) {
+		payments.push(payment_to_string(payment));
+		do_payment(payment, balance, unbalanced);
+	}
+
+	for (var payment = find_payment(balance, unbalanced); payment[0] != 0; payment = find_payment(balance, unbalanced)) {
+		payments.push(payment_to_string(payment));
+		do_payment(payment, balance, unbalanced);
+	}
+	return payments;
+}
+
+function update_view() {
+	document.getElementById("persons").innerHTML = persons.join(" ");	
+
+	var x = "";
+	for (var i = 0; i < expenses.length; i++) {
+		x += expenses[i]["who"] + " payed " + expenses[i]["amount"] + ":- for " + expenses[i]["what"] + " for "
+		if (expenses[i]["names"] == "all") 
+			x += persons.join(" ") + "\n";
+		else 
+			x += expenses[i]["names"] + "\n";
+	}
+	document.getElementById("expenses").innerHTML = x;
+	
+	var balance = calc_balance();
+
+	x = "";
+	for (var key in balance) {
+		x += key + " " + balance[key] + "\n";
+	}
+	document.getElementById("balance").innerHTML = x;
+
+	var payments = calc_payments(balance);
+	document.getElementById("payments").innerHTML = payments.join("\n");	
+}
+
+</script>
+
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>shareit</title>
+<script type="text/javascript" src="http://www.barelyfitz.com/projects/tabber/tabber.js"></script>
+<link rel="stylesheet" href="http://www.barelyfitz.com/projects/tabber/example.css" TYPE="text/css" MEDIA="screen">
+<link rel="stylesheet" href="http://www.barelyfitz.com/projects/tabber/example-print.css" TYPE="text/css" MEDIA="print">
+
+<script type="text/javascript">
+
+/* Optional: Temporarily hide the "tabber" class so it does not "flash"
+   on the page as plain HTML. After tabber runs, the class is changed
+   to "tabberlive" and it will appear. */
+
+document.write('<style type="text/css">.tabber{display:none;}<\/style>');
+</script>
+
+</head>
+<body>
+
+<h1>shareit</h1>
+
+<div class="tabber">
+
+     <div class="tabbertab">
+		<h4>Add expense:</h4>
+		<form id=add_expense_form>
+		<input name=who placeholder=Someone> payed<br>
+		<input name=amount placeholder=X>kr for<br>
+		<input name=what placeholder=something> for<br>
+		<input id=names placeholder="someone (all for everybody)">
+		<button type="button" onclick="add_expense()">Add</button>
+		</form>
+		
+		<h4>Expenses:</h4>
+		<pre><div id=expenses>No expenses yet</div></pre>
+     </div>
+
+
+     <div class="tabbertab">
+		<h4>Add person:</h4>
+		<form id=add_person_form>
+		<input name=who placeholder=who> <button type="button" onclick="add_person()">Add</button>
+		</form>
+
+		<h4>Persons:</h4>
+		<pre><div id=persons>No persons yet</div></pre>
+     </div>
+
+
+     <div class="tabbertab">
+		<h4>Balance:</h4>
+		<pre><div id=balance>No balance yet</div></pre>
+		<h4>Payments to do:</h4>
+		<pre><div id=payments>Nobody pays nothing.</div></pre>		
+     </div>
+
+</div>
+
+</body>
+</html>
